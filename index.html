@@ -25,7 +25,6 @@
 <style>
 html, body {
   margin: 0;
-  height: 100svh;
   overflow: hidden;
   overscroll-behavior: none;
   background: #f4f3f1;
@@ -47,9 +46,10 @@ html, body {
 }
 canvas {
   position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100svh;
+  top: 0;
+  left: 0;
+  width: 100lvw;
+  height: 100lvh;
   display: block;
 }
 </style>
@@ -190,38 +190,8 @@ canvas {
   }
 
   function measure() {
-    var root = document.documentElement;
-    var s = window.screen;
-    var w = 0;
-    var h = 0;
-    if (s) {
-      w = +s.width || 0;
-      h = +s.height || 0;
-      var dpr = window.devicePixelRatio || 1;
-      var iw = window.innerWidth || 0;
-      var ih = window.innerHeight || 0;
-      if (dpr > 1 && iw > 0 && ih > 0 && w > iw && h > ih) {
-        var rw = w / iw;
-        var rh = h / ih;
-        if (Math.abs(rw - dpr) / dpr < 0.12 && Math.abs(rh - dpr) / dpr < 0.12) {
-          w = w / dpr;
-          h = h / dpr;
-        }
-      }
-      if (iw > 0 && ih > 0 && (w < h) !== (iw < ih)) {
-        if (Math.max(iw, ih) > Math.max(w, h) * 0.85) {
-          var swap = w;
-          w = h;
-          h = swap;
-        }
-      }
-    }
-    var vv = window.visualViewport;
-    var coverW = Math.max(w, window.innerWidth || 0, vv ? vv.width : 0, root.clientWidth || 0);
-    var coverH = Math.max(h, window.innerHeight || 0, vv ? vv.height : 0, root.clientHeight || 0);
-    if (!(coverW > 0)) coverW = root.clientWidth || 1;
-    if (!(coverH > 0)) coverH = root.clientHeight || 1;
-    return { w: Math.ceil(coverW) + 2, h: Math.ceil(coverH) + 2 };
+    var box = canvas.getBoundingClientRect();
+    return { w: Math.ceil(box.width), h: Math.ceil(box.height) };
   }
 
   function fieldOf(cssW, cssH) {
@@ -376,8 +346,6 @@ canvas {
       canvas.width = bw;
       canvas.height = bh;
     }
-    canvas.style.width = size.w + "px";
-    canvas.style.height = size.h + "px";
     lastW = size.w;
     lastH = size.h;
     return size;
