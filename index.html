@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=overlays-content">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f4f3f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141416" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f3f1">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="description" content="Fundo translúcido em toda a tela, no claro ou no escuro do sistema.">
+<title>Aurora</title>
+<script>
+(function () {
+  var root = document.documentElement;
+  var lastW = 0;
+  var lastH = 0;
+  function measure() {
+    var s = window.screen;
+    var w = 0;
+    var h = 0;
+    if (s) {
+      w = +s.width || 0;
+      h = +s.height || 0;
+      var dpr = window.devicePixelRatio || 1;
+      var iw = window.innerWidth || 0;
+      var ih = window.innerHeight || 0;
+      if (dpr > 1 && iw > 0 && ih > 0 && w > iw && h > ih) {
+        var rw = w / iw;
+        var rh = h / ih;
+        if (Math.abs(rw - dpr) / dpr < 0.12 && Math.abs(rh - dpr) / dpr < 0.12) {
+          w = w / dpr;
+          h = h / dpr;
+        }
+      }
+      if (iw > 0 && ih > 0 && (w < h) !== (iw < ih)) {
+        var longView = Math.max(iw, ih);
+        var longScreen = Math.max(w, h);
+        if (longView > longScreen * 0.85) {
+          var swap = w;
+          w = h;
+          h = swap;
+        }
+      }
+    }
+    var vv = window.visualViewport;
+    var coverW = Math.max(w, window.innerWidth || 0, vv ? vv.width : 0, root.clientWidth || 0);
+    var coverH = Math.max(h, window.innerHeight || 0, vv ? vv.height : 0, root.clientHeight || 0);
+    if (!(coverW > 0)) coverW = root.clientWidth || 1;
+    if (!(coverH > 0)) coverH = root.clientHeight || 1;
+    return { w: Math.ceil(coverW) + 2, h: Math.ceil(coverH) + 2 };
+  }
+  function applySize() {
+    var m = measure();
+    if (m.w === lastW && m.h === lastH) return;
+    lastW = m.w;
+    lastH = m.h;
+    root.style.setProperty("--screen-w", m.w + "px");
+    root.style.setProperty("--screen-h", m.h + "px");
+  }
+  function probeScheme() {
+    var node = document.getElementById("scheme-probe");
+    if (!node) return "";
+    var c = String(getComputedStyle(node).color || "").replace(/\s/g, "").toLowerCase();
+    if (c.indexOf("255,255,255") !== -1) return "dark";
+    if (c.indexOf("0,0,0") !== -1) return "light";
+    return "";
+  }
+  function mediaScheme() {
+    if (!window.matchMedia) return "";
+    var dark = matchMedia("(prefers-color-scheme: dark)");
+    var light = matchMedia("(prefers-color-scheme: light)");
+    if (!dark || dark.media === "not all") return "";
+    if (dark.matches) return "dark";
+    if (light && light.matches) return "light";
+    return "light";
+  }
+  function applyScheme() {
+    var scheme = probeScheme() || mediaScheme() || "light";
+    if (root.getAttribute("data-scheme") !== scheme) root.setAttribute("data-scheme", scheme);
+    var color = scheme === "dark" ? "#141416" : "#f4f3f1";
+    var metas = document.querySelectorAll('meta[name="theme-color"]');
+    for (var i = 0; i < metas.length; i++) {
+      if (!metas[i].hasAttribute("media") && metas[i].getAttribute("content") !== color) {
+        metas[i].setAttribute("content", color);
+      }
+    }
+  }
+  function watch(query) {
+    if (!window.matchMedia) return;
+    var q = matchMedia(query);
+    if (!q) return;
+    var fn = function () { requestAnimationFrame(applyScheme); };
+    if (q.addEventListener) q.addEventListener("change", fn);
+    else if (q.addListener) q.addListener(fn);
+  }
+  try {
+    applySize();
+    addEventListener("resize", applySize, { passive: true });
+    addEventListener("orientationchange", applySize, { passive: true });
+    addEventListener("pageshow", function () { applySize(); applyScheme(); });
+    if (window.screen && screen.orientation && screen.orientation.addEventListener) {
+      screen.orientation.addEventListener("change", applySize);
+    }
+    if (window.visualViewport) visualViewport.addEventListener("resize", applySize, { passive: true });
+    watch("(prefers-color-scheme: dark)");
+    watch("(prefers-color-scheme: light)");
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", applyScheme, { once: true });
+    else applyScheme();
+  } catch (e) {}
+})();
+</script>
+<style>
+:root {
+  --solid: #f4f3f1;
+  --sat: 72%;
+  --lit: 58%;
+  --ink: 0.85;
+  color-scheme: light dark;
+  background-color: var(--solid);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --solid: #141416;
+    --sat: 58%;
+    --lit: 42%;
+    --ink: 0.75;
+    color-scheme: dark;
+    background-color: var(--solid);
+  }
+}
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--solid);
+}
+body { position: fixed; inset: 0; }
+#scheme-probe {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  color: #000;
+  pointer-events: none;
+}
+@media (prefers-color-scheme: dark) {
+  #scheme-probe { color: #fff; }
+}
+.field {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--screen-w, 100%);
+  height: var(--screen-h, 100%);
+  transform: translate(-50%, -50%);
+  container-type: size;
+  background: var(--solid);
+  overflow: hidden;
+}
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.bloom {
+  position: absolute;
+  left: calc(var(--nx) * 100%);
+  top: calc(var(--ny) * 100%);
+  width: calc(var(--rw) * max(var(--screen-w, 100%), var(--screen-h, 100%)));
+  height: calc(var(--rh) * max(var(--screen-w, 100%), var(--screen-h, 100%)));
+  transform: translate(-50%, -50%);
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+  pointer-events: none;
+}
+.ink {
+  width: 100%;
+  height: 100%;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bloom, .ink { animation: none; }
+}
+</style>
+</head>
+<body>
+<div id="scheme-probe" aria-hidden="true"></div>
+<main class="field">
+  <h1 class="sr">Aurora</h1>
+</main>
+<script>
+(function () {
+  var SIDE = 4096;
+  var SIGMA = 200;
+  var SEED = 314159;
+  function mulberry32(seed) {
+    var a = seed >>> 0;
+    return function () {
+      a |= 0;
+      a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function erf(x) {
+    var sign = x < 0 ? -1 : 1;
+    var a = Math.abs(x);
+    var t = 1 / (1 + 0.3275911 * a);
+    var y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-a * a);
+    return sign * y;
+  }
+  function stopsFor(rx, ry) {
+    var radius = (rx + ry) / 2;
+    var outer = radius + SIGMA * 3;
+    var parts = [];
+    for (var i = 0; i <= 12; i++) {
+      var u = i / 12;
+      var k = i === 12 ? 0 : 0.5 * (1 - erf((u * outer - radius) / (SIGMA * Math.SQRT2)));
+      parts.push("hsl(var(--h) var(--sat) var(--lit) / calc(var(--ink) * " + k.toFixed(5) + ")) " + (u * 100).toFixed(1) + "%");
+    }
+    return parts.join(", ");
+  }
+  var random = mulberry32(SEED);
+  var count = 6 + Math.floor(random() * 2);
+  var blooms = [];
+  var i;
+  for (i = 0; i < count; i++) {
+    var hue = random() * 360;
+    var nx = random();
+    var ny = random();
+    var rx = 900 + random() * 1100;
+    var ry = 700 + random() * 900;
+    blooms.push({ hue: hue, nx: nx, ny: ny, rw: (rx + SIGMA * 3) / SIDE, rh: (ry + SIGMA * 3) / SIDE, stops: stopsFor(rx, ry) });
+  }
+  var css = [];
+  for (i = 0; i < blooms.length; i++) {
+    var ax = (random() * 10 + 6) * (random() < 0.5 ? -1 : 1);
+    var ay = (random() * 8 + 5) * (random() < 0.5 ? -1 : 1);
+    var bx = (random() * 10 + 6) * (random() < 0.5 ? -1 : 1);
+    var by = (random() * 8 + 5) * (random() < 0.5 ? -1 : 1);
+    var s1x = 0.9 + random() * 0.2;
+    var s1y = 0.9 + random() * 0.2;
+    var s2x = 0.9 + random() * 0.2;
+    var s2y = 0.9 + random() * 0.2;
+    var spin = (18 + random() * 26) * (random() < 0.5 ? -1 : 1);
+    blooms[i].driftSec = 240 + random() * 180;
+    blooms[i].hueSec = 280 + random() * 220;
+    css.push(
+      "@keyframes g-drift-" + i + " {" +
+      "0% { transform: translate(-50%, -50%) translate3d(0px, 0px, 0) scale(1, 1); }" +
+      "50% { transform: translate(-50%, -50%) translate3d(" + ax.toFixed(2) + "cqw, " + ay.toFixed(2) + "cqh, 0) scale(" + s1x.toFixed(4) + ", " + s1y.toFixed(4) + "); }" +
+      "100% { transform: translate(-50%, -50%) translate3d(" + bx.toFixed(2) + "cqw, " + by.toFixed(2) + "cqh, 0) scale(" + s2x.toFixed(4) + ", " + s2y.toFixed(4) + "); }" +
+      "}" +
+      "@keyframes g-hue-" + i + " { from { filter: hue-rotate(0deg); } to { filter: hue-rotate(" + spin.toFixed(2) + "deg); } }"
+    );
+  }
+  var style = document.createElement("style");
+  style.textContent = css.join("\n");
+  document.head.appendChild(style);
+  var field = document.querySelector(".field");
+  for (i = 0; i < blooms.length; i++) {
+    var bloom = blooms[i];
+    var veil = document.createElement("div");
+    veil.className = "bloom";
+    veil.style.setProperty("--h", bloom.hue.toFixed(4));
+    veil.style.setProperty("--nx", bloom.nx.toFixed(6));
+    veil.style.setProperty("--ny", bloom.ny.toFixed(6));
+    veil.style.setProperty("--rw", bloom.rw.toFixed(6));
+    veil.style.setProperty("--rh", bloom.rh.toFixed(6));
+    veil.style.animationName = "g-drift-" + i;
+    veil.style.animationDuration = bloom.driftSec.toFixed(0) + "s";
+    var ink = document.createElement("div");
+    ink.className = "ink";
+    ink.style.background = "radial-gradient(ellipse 100% 100% at 50% 50%, " + bloom.stops + ")";
+    ink.style.animationName = "g-hue-" + i;
+    ink.style.animationDuration = bloom.hueSec.toFixed(0) + "s";
+    veil.appendChild(ink);
+    field.appendChild(veil);
+  }
+})();
+</script>
+</body>
+</html>
