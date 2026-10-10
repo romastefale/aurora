@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aurora</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --base: #f4f2f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --base: #07070b; }
+  }
+  html, body {
+    margin: 0;
+    background: var(--base);
+  }
+  canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100lvh;
+  }
+</style>
+</head>
+<body>
+<canvas></canvas>
+<script>
+(() => {
+  const canvas = document.querySelector('canvas');
+  const ctx = canvas.getContext('2d');
+  const darkQuery = matchMedia('(prefers-color-scheme: dark)');
+  const reducedQuery = matchMedia('(prefers-reduced-motion: reduce)');
+
+  const SCALE = 1 / 6;
+  const BLOBS = 7;
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const ease = t => t * t * (3 - 2 * t);
+  const lerpHue = (a, b, t) => a + ((((b - a) % 360) + 540) % 360 - 180) * t;
+
+  let dark = darkQuery.matches;
+  let width = 1, height = 1;
+
+  function samplePalette() {
+    const base = rand(0, 360);
+    const offsets = [[0, 30, -30], [0, 150, 210], [0, 120, 240], [0, 60, 180]][Math.floor(rand(0, 4))];
+    return Array.from({ length: BLOBS }, () => base + offsets[Math.floor(rand(0, offsets.length))] + rand(-18, 18));
+  }
+
+  function sampleState(hue) {
+    return {
+      x: rand(-0.1, 1.1),
+      y: rand(-0.1, 1.1),
+      r: rand(0.35, 0.8),
+      h: hue,
+      s: rand(dark ? 55 : 60, dark ? 85 : 90),
+      l: rand(dark ? 40 : 62, dark ? 60 : 78),
+      a: rand(dark ? 0.35 : 0.4, dark ? 0.7 : 0.75)
+    };
+  }
+
+  let palette = samplePalette();
+  const blobs = palette.map(h => {
+    const from = sampleState(h);
+    return { from, to: sampleState(h), t: Math.random(), dur: rand(14, 26) };
+  });
+
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    width = Math.max(1, Math.round(rect.width * SCALE));
+    height = Math.max(1, Math.round(rect.height * SCALE));
+    canvas.width = width;
+    canvas.height = height;
+  }
+
+  function draw(dt) {
+    const base = getComputedStyle(document.documentElement).getPropertyValue('--base').trim();
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, width, height);
+    ctx.globalCompositeOperation = dark ? 'screen' : 'multiply';
+
+    const diag = Math.hypot(width, height);
+    let finished = 0;
+    for (const b of blobs) {
+      b.t += dt / b.dur;
+      if (b.t >= 1) {
+        b.t = 0;
+        b.from = b.to;
+        b.to = sampleState(palette[Math.floor(rand(0, palette.length))] + rand(-18, 18));
+        b.dur = rand(14, 26);
+        finished++;
+      }
+      const k = ease(b.t);
+      const x = lerp(b.from.x, b.to.x, k) * width;
+      const y = lerp(b.from.y, b.to.y, k) * height;
+      const r = lerp(b.from.r, b.to.r, k) * diag;
+      const h = lerpHue(b.from.h, b.to.h, k);
+      const s = lerp(b.from.s, b.to.s, k);
+      const l = lerp(b.from.l, b.to.l, k);
+      const a = lerp(b.from.a, b.to.a, k);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `hsla(${h}, ${s}%, ${l}%, ${a})`);
+      g.addColorStop(1, `hsla(${h}, ${s}%, ${l}%, 0)`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, width, height);
+    }
+    if (finished && Math.random() < 0.15) palette = samplePalette();
+  }
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    draw(reducedQuery.matches ? dt * 0.15 : dt);
+    requestAnimationFrame(frame);
+  }
+
+  darkQuery.addEventListener('change', e => {
+    dark = e.matches;
+    for (const b of blobs) b.to = sampleState(b.to.h);
+  });
+  new ResizeObserver(resize).observe(canvas);
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
