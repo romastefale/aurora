@@ -15,19 +15,15 @@
     margin: 0;
     padding: 0;
     background: var(--base);
-    overflow: hidden;
   }
   .aurora {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
   }
   .aurora canvas {
     display: block;
-    width: 100%;
-    height: 100%;
   }
 </style>
 </head>
@@ -40,7 +36,6 @@
   const darkQuery = matchMedia('(prefers-color-scheme: dark)');
   const reducedQuery = matchMedia('(prefers-reduced-motion: reduce)');
 
-  const RESOLUTION = 1 / 6;
   const BLOBS = 7;
   const HARMONIES = [[0, 30, -30], [0, 150, 210], [0, 120, 240]];
   const rand = (a, b) => a + Math.random() * (b - a);
@@ -52,7 +47,8 @@
 
   let dark = darkQuery.matches;
   let base = readBase();
-  let width = 320, height = 180;
+  const width = 800;
+  const height = 450;
   let generation = 0;
   let palette = samplePalette();
 
