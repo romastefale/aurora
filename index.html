@@ -8,8 +8,6 @@
   :root {
     color-scheme: light dark;
     --base: #f4f2f7;
-    --safe-area-max-inset-top: env(safe-area-max-inset-top, env(safe-area-inset-top, 0px));
-    --safe-area-max-inset-bottom: env(safe-area-max-inset-bottom, 36px);
   }
   @media (prefers-color-scheme: dark) {
     :root { --base: #07070b; }
@@ -17,33 +15,42 @@
   html, body {
     margin: 0;
     background: var(--base);
+    overflow: hidden;
   }
   canvas {
     position: fixed;
     left: 0;
     width: 100%;
+    display: block;
   }
-  .viewport {
+  #main {
     top: 0;
     height: 100%;
   }
+  .safe {
+    display: none;
+  }
+  @supports (top: env(safe-area-inset-top)) {
+    .safe { display: block; }
+    #main { height: calc(100% - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); top: env(safe-area-inset-top, 0px); }
+  }
   .top {
-    height: var(--safe-area-max-inset-top);
-    top: calc(env(safe-area-inset-top, 0px) - var(--safe-area-max-inset-top));
+    height: env(safe-area-inset-top, 0px);
+    top: 0;
   }
   .bottom {
-    height: var(--safe-area-max-inset-bottom);
-    bottom: calc(env(safe-area-inset-bottom, 0px) - var(--safe-area-max-inset-bottom));
+    height: env(safe-area-inset-bottom, 0px);
+    bottom: 0;
   }
 </style>
 </head>
 <body>
-<canvas class="top"></canvas>
-<canvas class="viewport"></canvas>
-<canvas class="bottom"></canvas>
+<canvas id="main"></canvas>
+<canvas class="safe top"></canvas>
+<canvas class="safe bottom"></canvas>
 <script>
 (() => {
-  const viewport = document.querySelector('.viewport');
+  const main = document.querySelector('#main');
   const surfaces = [...document.querySelectorAll('canvas')].map(canvas => ({ canvas, ctx: canvas.getContext('2d') }));
   const darkQuery = matchMedia('(prefers-color-scheme: dark)');
   const reducedQuery = matchMedia('(prefers-reduced-motion: reduce)');
@@ -125,7 +132,9 @@
   }
 
   function paint({ canvas, ctx }, spots, view) {
+    if (getComputedStyle(canvas).display === 'none') return;
     const rect = canvas.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return;
     const sx = canvas.width / Math.max(1, rect.width);
     const sy = canvas.height / Math.max(1, rect.height);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -153,7 +162,7 @@
     const step = reducedQuery.matches ? dt * 0.15 : dt;
     for (const b of blobs) advance(b, step);
     const spots = field();
-    const view = viewport.getBoundingClientRect();
+    const view = main.getBoundingClientRect();
     for (const surface of surfaces) paint(surface, spots, view);
     requestAnimationFrame(frame);
   }
