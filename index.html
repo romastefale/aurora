@@ -34,7 +34,7 @@
   const darkQuery = matchMedia('(prefers-color-scheme: dark)');
   const reducedQuery = matchMedia('(prefers-reduced-motion: reduce)');
 
-  const SCALE = 1 / 6;
+  const RESOLUTION = 1 / 6;
   const BLOBS = 7;
   const rand = (a, b) => a + Math.random() * (b - a);
   const lerp = (a, b, t) => a + (b - a) * t;
@@ -42,6 +42,7 @@
   const lerpHue = (a, b, t) => a + ((((b - a) % 360) + 540) % 360 - 180) * t;
 
   let dark = darkQuery.matches;
+  let base = getComputedStyle(document.documentElement).getPropertyValue('--base').trim();
   let width = 1, height = 1;
 
   function samplePalette() {
@@ -70,14 +71,13 @@
 
   function resize() {
     const rect = canvas.getBoundingClientRect();
-    width = Math.max(1, Math.round(rect.width * SCALE));
-    height = Math.max(1, Math.round(rect.height * SCALE));
+    width = Math.max(1, Math.round(rect.width * RESOLUTION));
+    height = Math.max(1, Math.round(rect.height * RESOLUTION));
     canvas.width = width;
     canvas.height = height;
   }
 
   function draw(dt) {
-    const base = getComputedStyle(document.documentElement).getPropertyValue('--base').trim();
     ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = base;
     ctx.fillRect(0, 0, width, height);
@@ -121,6 +121,7 @@
 
   darkQuery.addEventListener('change', e => {
     dark = e.matches;
+    base = getComputedStyle(document.documentElement).getPropertyValue('--base').trim();
     for (const b of blobs) b.to = sampleState(b.to.h);
   });
   new ResizeObserver(resize).observe(canvas);
