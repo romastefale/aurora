@@ -18,22 +18,18 @@
     background: var(--base);
     overflow: hidden;
   }
-  .aurora {
+  canvas {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100lvh;
-  }
-  .aurora canvas {
     display: block;
-    width: 100%;
-    height: 100%;
   }
 </style>
 </head>
 <body>
-<div class="aurora"><canvas></canvas></div>
+<canvas></canvas>
 <script>
 (() => {
   const canvas = document.querySelector('canvas');
