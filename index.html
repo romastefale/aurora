@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Aurora</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --base: #f4f2f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --base: #07070b; }
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--base);
+    overflow: hidden;
+  }
+  .aurora {
+    position: fixed;
+    top: 0;
+    left: 0;
+  }
+  .aurora canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<div class="aurora"><canvas></canvas></div>
+<script>
+(() => {
+  const canvas = document.querySelector('canvas');
+  const ctx = canvas.getContext('2d');
+  const darkQuery = matchMedia('(prefers-color-scheme: dark)');
+  const reducedQuery = matchMedia('(prefers-reduced-motion: reduce)');
+
+  const RESOLUTION = 1 / 6;
+  const BLOBS = 7;
+  const HARMONIES = [[0, 30, -30], [0, 150, 210], [0, 120, 240]];
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const pick = list => list[Math.floor(Math.random() * list.length)];
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const ease = t => t * t * (3 - 2 * t);
+  const lerpHue = (a, b, t) => a + ((((b - a) % 360) + 540) % 360 - 180) * t;
+  const readBase = () => getComputedStyle(document.documentElement).getPropertyValue('--base').trim();
+
+  let dark = darkQuery.matches;
+  let base = readBase();
+  let width = 1, height = 1;
+  let generation = 0;
+  let palette = samplePalette();
+
+  function samplePalette() {
+    const root = rand(0, 360);
+    return pick(HARMONIES).map(offset => root + offset);
+  }
+
+  function sampleState() {
+    return {
+      x: rand(-0.1, 1.1),
+      y: rand(-0.1, 1.1),
+      r: rand(0.35, 0.8),
+      h: pick(palette) + rand(-12, 12),
+      s: rand(dark ? 55 : 60, dark ? 85 : 90),
+      l: rand(dark ? 40 : 62, dark ? 60 : 78),
+      a: rand(dark ? 0.35 : 0.4, dark ? 0.7 : 0.75)
+    };
+  }
+
+  const blobs = Array.from({ length: BLOBS }, () => ({
+    from: sampleState(),
+    to: sampleState(),
+    t: Math.random(),
+    dur: rand(14, 26),
+    generation
+  }));
+
+  function resize() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    width = Math.max(1, Math.round(w * RESOLUTION));
+    height = Math.max(1, Math.round(h * RESOLUTION));
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+  }
+
+  function advance(b, dt) {
+    b.t += dt / b.dur;
+    if (b.t < 1) return;
+    b.t = 0;
+    b.from = b.to;
+    b.to = sampleState();
+    b.dur = rand(14, 26);
+    b.generation = generation;
+    if (blobs.every(other => other.generation === generation)) {
+      generation++;
+      palette = samplePalette();
+    }
+  }
+
+  function draw(dt) {
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, width, height);
+    ctx.globalCompositeOperation = dark ? 'screen' : 'multiply';
+
+    const diag = Math.hypot(width, height);
+    for (const b of blobs) {
+      advance(b, dt);
+      const k = ease(b.t);
+      const x = lerp(b.from.x, b.to.x, k) * width;
+      const y = lerp(b.from.y, b.to.y, k) * height;
+      const r = lerp(b.from.r, b.to.r, k) * diag;
+      const h = lerpHue(b.from.h, b.to.h, k);
+      const s = lerp(b.from.s, b.to.s, k);
+      const l = lerp(b.from.l, b.to.l, k);
+      const a = lerp(b.from.a, b.to.a, k);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `hsla(${h}, ${s}%, ${l}%, ${a})`);
+      g.addColorStop(1, `hsla(${h}, ${s}%, ${l}%, 0)`);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, width, height);
+    }
+  }
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    draw(reducedQuery.matches ? dt * 0.15 : dt);
+    requestAnimationFrame(frame);
+  }
+
+  darkQuery.addEventListener('change', e => {
+    dark = e.matches;
+    base = readBase();
+    for (const b of blobs) b.to = { ...sampleState(), h: b.to.h };
+  });
+
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
