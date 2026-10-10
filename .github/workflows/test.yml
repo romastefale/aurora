@@ -1,0 +1,19 @@
+name: Test index.html
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verificar estrutura
+        run: |
+          if ! grep -q '<canvas' index.html; then echo 'ERRO: canvas ausente'; exit 1; fi
+          if ! grep -q 'requestAnimationFrame' index.html; then echo 'ERRO: animacao ausente'; exit 1; fi
+          if grep -q 'RESOLUTION' index.html; then echo 'AVISO: reducao de resolucao presente'; fi
+          echo 'Estrutura basica OK'
+          wc -l index.html
