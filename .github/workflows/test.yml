@@ -1,0 +1,45 @@
+name: Test index.html
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm init -y && npm install playwright
+      - name: Instalar browsers
+        run: npx playwright install --with-deps chromium
+      - name: Medir canvas
+        run: |
+          cat > test.mjs << 'EOF'
+          import { chromium } from 'playwright';
+          const browser = await chromium.launch();
+          const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+          await page.goto('file://' + process.cwd() + '/index.html');
+          await page.waitForTimeout(2000);
+          const result = await page.evaluate(() => {
+            const c = document.querySelector('canvas');
+            if (!c) return { error: 'sem canvas' };
+            const r = c.getBoundingClientRect();
+            return {
+              bufferW: c.width,
+              bufferH: c.height,
+              displayW: r.width,
+              displayH: r.height,
+              innerW: window.innerWidth,
+              innerH: window.innerHeight,
+              fills: Math.abs(r.width - window.innerWidth) < 5 && Math.abs(r.height - window.innerHeight) < 5
+            };
+          });
+          console.log(JSON.stringify(result, null, 2));
+          await browser.close();
+          if (result.error || !result.fills) process.exit(1);
+          EOF
+          node test.mjs
