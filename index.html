@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Aurora</title>
 <style>
   :root {
@@ -15,12 +16,12 @@
     margin: 0;
     padding: 0;
     background: var(--base);
+    overflow: hidden;
   }
   .aurora {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+    position: fixed;
+    top: 0;
+    left: 0;
   }
   .aurora canvas {
     display: block;
@@ -36,6 +37,7 @@
   const darkQuery = matchMedia('(prefers-color-scheme: dark)');
   const reducedQuery = matchMedia('(prefers-reduced-motion: reduce)');
 
+  const RESOLUTION = 1 / 6;
   const BLOBS = 7;
   const HARMONIES = [[0, 30, -30], [0, 150, 210], [0, 120, 240]];
   const rand = (a, b) => a + Math.random() * (b - a);
@@ -47,13 +49,9 @@
 
   let dark = darkQuery.matches;
   let base = readBase();
-  const width = 800;
-  const height = 450;
+  let width = 1, height = 1;
   let generation = 0;
   let palette = samplePalette();
-
-  canvas.width = width;
-  canvas.height = height;
 
   function samplePalette() {
     const root = rand(0, 360);
@@ -79,6 +77,17 @@
     dur: rand(14, 26),
     generation
   }));
+
+  function resize() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    width = Math.max(1, Math.round(w * RESOLUTION));
+    height = Math.max(1, Math.round(h * RESOLUTION));
+    canvas.width = width;
+    canvas.height = height;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+  }
 
   function advance(b, dt) {
     b.t += dt / b.dur;
@@ -133,6 +142,8 @@
     for (const b of blobs) b.to = { ...sampleState(), h: b.to.h };
   });
 
+  window.addEventListener('resize', resize);
+  resize();
   requestAnimationFrame(frame);
 })();
 </script>
