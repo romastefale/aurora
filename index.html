@@ -75,16 +75,9 @@
     generation
   }));
 
-  function getSize() {
-    const vv = window.visualViewport;
-    return {
-      w: vv ? vv.width : window.innerWidth,
-      h: vv ? vv.height : window.innerHeight
-    };
-  }
-
   function resize() {
-    const { w, h } = getSize();
+    const w = window.innerWidth;
+    const h = window.innerHeight;
     width = Math.max(1, Math.round(w));
     height = Math.max(1, Math.round(h));
     canvas.width = width;
@@ -147,7 +140,6 @@
   });
 
   window.addEventListener('resize', resize);
-  if (window.visualViewport) window.visualViewport.addEventListener('resize', resize);
   resize();
   requestAnimationFrame(frame);
 })();
