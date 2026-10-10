@@ -78,9 +78,15 @@
     generation
   }));
 
+  function getSize() {
+    const vv = window.visualViewport;
+    const w = vv ? vv.width : window.innerWidth;
+    const h = vv ? vv.height : window.innerHeight;
+    return { w, h };
+  }
+
   function resize() {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const { w, h } = getSize();
     width = Math.max(1, Math.round(w * RESOLUTION));
     height = Math.max(1, Math.round(h * RESOLUTION));
     canvas.width = width;
@@ -143,6 +149,9 @@
   });
 
   window.addEventListener('resize', resize);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', resize);
+  }
   resize();
   requestAnimationFrame(frame);
 })();
