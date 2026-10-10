@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Aurora</title>
 <style>
   :root {
@@ -14,44 +14,26 @@
   }
   html, body {
     margin: 0;
+    padding: 0;
     background: var(--base);
     overflow: hidden;
   }
   canvas {
     position: fixed;
+    top: 0;
     left: 0;
     width: 100%;
+    height: 100%;
     display: block;
-  }
-  #main {
-    top: 0;
-    height: 100dvh;
-  }
-  .safe {
-    display: none;
-  }
-  @supports (top: env(safe-area-inset-top)) {
-    .safe { display: block; }
-    #main { height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); top: env(safe-area-inset-top, 0px); }
-  }
-  .top {
-    height: env(safe-area-inset-top, 0px);
-    top: 0;
-  }
-  .bottom {
-    height: env(safe-area-inset-bottom, 0px);
-    bottom: 0;
   }
 </style>
 </head>
 <body>
-<canvas id="main"></canvas>
-<canvas class="safe top"></canvas>
-<canvas class="safe bottom"></canvas>
+<canvas></canvas>
 <script>
 (() => {
-  const main = document.querySelector('#main');
-  const surfaces = [...document.querySelectorAll('canvas')].map(canvas => ({ canvas, ctx: canvas.getContext('2d') }));
+  const canvas = document.querySelector('canvas');
+  const ctx = canvas.getContext('2d');
   const darkQuery = matchMedia('(prefers-color-scheme: dark)');
   const reducedQuery = matchMedia('(prefers-reduced-motion: reduce)');
 
@@ -67,12 +49,13 @@
 
   let dark = darkQuery.matches;
   let base = readBase();
+  let width = 1, height = 1;
   let generation = 0;
   let palette = samplePalette();
 
   function samplePalette() {
-    const hue = rand(0, 360);
-    return pick(HARMONIES).map(offset => hue + offset);
+    const root = rand(0, 360);
+    return pick(HARMONIES).map(offset => root + offset);
   }
 
   function sampleState() {
@@ -95,11 +78,13 @@
     generation
   }));
 
-  function resize(entries) {
-    for (const { target, contentRect } of entries) {
-      target.width = Math.max(1, Math.round(contentRect.width * RESOLUTION));
-      target.height = Math.max(1, Math.round(contentRect.height * RESOLUTION));
-    }
+  function resize() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    width = Math.max(1, Math.round(w * RESOLUTION));
+    height = Math.max(1, Math.round(h * RESOLUTION));
+    canvas.width = width;
+    canvas.height = height;
   }
 
   function advance(b, dt) {
@@ -116,42 +101,28 @@
     }
   }
 
-  function field() {
-    return blobs.map(b => {
-      const k = ease(b.t);
-      return {
-        x: lerp(b.from.x, b.to.x, k),
-        y: lerp(b.from.y, b.to.y, k),
-        r: lerp(b.from.r, b.to.r, k),
-        h: lerpHue(b.from.h, b.to.h, k),
-        s: lerp(b.from.s, b.to.s, k),
-        l: lerp(b.from.l, b.to.l, k),
-        a: lerp(b.from.a, b.to.a, k)
-      };
-    });
-  }
-
-  function paint({ canvas, ctx }, spots, view) {
-    if (getComputedStyle(canvas).display === 'none') return;
-    const rect = canvas.getBoundingClientRect();
-    if (rect.width < 1 || rect.height < 1) return;
-    const sx = canvas.width / Math.max(1, rect.width);
-    const sy = canvas.height / Math.max(1, rect.height);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  function draw(dt) {
     ctx.globalCompositeOperation = 'source-over';
     ctx.fillStyle = base;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0, 0, width, height);
     ctx.globalCompositeOperation = dark ? 'screen' : 'multiply';
-    ctx.setTransform(sx, 0, 0, sy, (view.left - rect.left) * sx, (view.top - rect.top) * sy);
-    const diag = Math.hypot(view.width, view.height);
-    for (const p of spots) {
-      const x = p.x * view.width;
-      const y = p.y * view.height;
-      const g = ctx.createRadialGradient(x, y, 0, x, y, p.r * diag);
-      g.addColorStop(0, `hsla(${p.h}, ${p.s}%, ${p.l}%, ${p.a})`);
-      g.addColorStop(1, `hsla(${p.h}, ${p.s}%, ${p.l}%, 0)`);
+
+    const diag = Math.hypot(width, height);
+    for (const b of blobs) {
+      advance(b, dt);
+      const k = ease(b.t);
+      const x = lerp(b.from.x, b.to.x, k) * width;
+      const y = lerp(b.from.y, b.to.y, k) * height;
+      const r = lerp(b.from.r, b.to.r, k) * diag;
+      const h = lerpHue(b.from.h, b.to.h, k);
+      const s = lerp(b.from.s, b.to.s, k);
+      const l = lerp(b.from.l, b.to.l, k);
+      const a = lerp(b.from.a, b.to.a, k);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      g.addColorStop(0, `hsla(${h}, ${s}%, ${l}%, ${a})`);
+      g.addColorStop(1, `hsla(${h}, ${s}%, ${l}%, 0)`);
       ctx.fillStyle = g;
-      ctx.fillRect(rect.left - view.left, rect.top - view.top, rect.width, rect.height);
+      ctx.fillRect(0, 0, width, height);
     }
   }
 
@@ -159,11 +130,7 @@
   function frame(now) {
     const dt = Math.min(0.1, (now - last) / 1000);
     last = now;
-    const step = reducedQuery.matches ? dt * 0.15 : dt;
-    for (const b of blobs) advance(b, step);
-    const spots = field();
-    const view = main.getBoundingClientRect();
-    for (const surface of surfaces) paint(surface, spots, view);
+    draw(reducedQuery.matches ? dt * 0.15 : dt);
     requestAnimationFrame(frame);
   }
 
@@ -172,8 +139,9 @@
     base = readBase();
     for (const b of blobs) b.to = { ...sampleState(), h: b.to.h };
   });
-  const observer = new ResizeObserver(resize);
-  for (const { canvas } of surfaces) observer.observe(canvas);
+
+  window.addEventListener('resize', resize);
+  resize();
   requestAnimationFrame(frame);
 })();
 </script>
