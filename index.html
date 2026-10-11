@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Aurora</title>
+<style>
+  :root {
+    --base: #f4f2f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --base: #07070b; }
+  }
+  html {
+    background: var(--base);
+    touch-action: none;
+  }
+  body {
+    margin: 0;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100lvh;
+  }
+</style>
+</head>
+<body>
+<canvas></canvas>
+<script>
+(() => {
+  const vertex = `
+    attribute vec2 p;
+    void main() {
+      gl_Position = vec4(p, 0.0, 1.0);
+    }
+  `;
+
+  const fragment = `
+    precision highp float;
+    uniform vec2 u_res;
+    uniform float u_time;
+    uniform vec3 u_colors[4];
+    uniform vec3 u_base;
+    uniform vec3 u_edge;
+
+    float hash(vec2 p) {
+      p = fract(p * vec2(123.34, 456.21));
+      p += dot(p, p + 45.32);
+      return fract(p.x * p.y);
+    }
+
+    float noise(vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+      float a = hash(i);
+      float b = hash(i + vec2(1.0, 0.0));
+      float c = hash(i + vec2(0.0, 1.0));
+      float d = hash(i + vec2(1.0, 1.0));
+      return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+    }
+
+    float fbm(vec2 p) {
+      float v = 0.0;
+      float amp = 0.5;
+      for (int i = 0; i < 4; i++) {
+        v += amp * noise(p);
+        p = mat2(1.6, 1.2, -1.2, 1.6) * p;
+        amp *= 0.5;
+      }
+      return v;
+    }
+
+    void main() {
+      vec2 uv = gl_FragCoord.xy / max(u_res.x, u_res.y);
+      float t = u_time * 0.03;
+      vec2 warp = vec2(fbm(uv * 2.0 + vec2(t, -t)), fbm(uv * 2.0 + vec2(5.2 - t, 1.3 + t)));
+      vec4 acc = vec4(0.0);
+      for (int k = 0; k < 4; k++) {
+        float fk = float(k);
+        vec2 drift = vec2(cos(fk * 1.9), sin(fk * 2.7)) * t;
+        float m = fbm(uv * (1.5 + fk * 0.4) + warp * 1.5 + drift + fk * 7.1);
+        float a = smoothstep(0.35, 0.75, m) * 0.6;
+        acc = vec4(u_colors[k] * a, a) + acc * (1.0 - a);
+      }
+      vec3 color = acc.rgb + u_base * (1.0 - acc.a);
+      float y = gl_FragCoord.y / u_res.y;
+      float toward = smoothstep(0.0, 0.14, min(y, 1.0 - y));
+      gl_FragColor = vec4(mix(u_edge, color, toward), 1.0);
+    }
+  `;
+
+  const canvas = document.querySelector('canvas');
+  const gl = canvas.getContext('webgl');
+  const scheme = matchMedia('(prefers-color-scheme: dark)');
+  const LAYERS = 4;
+  const PERIOD = 16000;
+  const random = (min, max) => min + Math.random() * (max - min);
+
+  function hsl(h, s, l) {
+    h = ((h % 360) + 360) % 360;
+    const k = n => (n + h / 30) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+    return [f(0), f(8), f(4)];
+  }
+
+  function palette() {
+    const dark = scheme.matches;
+    const root = random(0, 360);
+    return Array.from({ length: LAYERS }, () =>
+      hsl(root + random(-90, 90), random(0.55, 0.9), dark ? random(0.4, 0.6) : random(0.6, 0.78))
+    );
+  }
+
+  function shader(type, source) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, source);
+    gl.compileShader(s);
+    return s;
+  }
+
+  const root = document.documentElement;
+  let uRes, uTime, uColors, uBase, uEdge;
+  let baseColor = [0, 0, 0];
+
+  function setup() {
+    const program = gl.createProgram();
+    gl.attachShader(program, shader(gl.VERTEX_SHADER, vertex));
+    gl.attachShader(program, shader(gl.FRAGMENT_SHADER, fragment));
+    gl.linkProgram(program);
+    gl.useProgram(program);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const position = gl.getAttribLocation(program, 'p');
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+    uRes = gl.getUniformLocation(program, 'u_res');
+    uTime = gl.getUniformLocation(program, 'u_time');
+    uColors = gl.getUniformLocation(program, 'u_colors');
+    uBase = gl.getUniformLocation(program, 'u_base');
+    uEdge = gl.getUniformLocation(program, 'u_edge');
+
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.uniform2f(uRes, canvas.width, canvas.height);
+    base();
+  }
+
+  function base() {
+    const hex = getComputedStyle(root).getPropertyValue('--base').trim();
+    baseColor = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
+    gl.uniform3f(uBase, ...baseColor);
+  }
+
+  function edge(colors) {
+    return baseColor.map((b, c) => {
+      let sum = 0;
+      for (let i = 0; i < LAYERS; i++) sum += colors[i * 3 + c];
+      return b * 0.4 + (sum / LAYERS) * 0.6;
+    });
+  }
+
+  let from = palette();
+  let to = palette();
+  let since = performance.now();
+
+  function frame(now) {
+    let p = (now - since) / PERIOD;
+    if (p >= 1) {
+      from = to;
+      to = palette();
+      since = now;
+      p = 0;
+    }
+    const w = (1 - Math.cos(Math.PI * p)) / 2;
+    const colors = from.flatMap((c, i) => c.map((v, j) => v + (to[i][j] - v) * w));
+    const border = edge(colors);
+    gl.uniform3fv(uColors, colors);
+    gl.uniform3f(uEdge, ...border);
+    gl.uniform1f(uTime, now / 1000);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    root.style.backgroundColor = `rgb(${border.map(v => Math.round(v * 255)).join(', ')})`;
+    requestAnimationFrame(frame);
+  }
+
+  new ResizeObserver(([{ contentRect }]) => {
+    canvas.width = Math.max(1, Math.round(contentRect.width));
+    canvas.height = Math.max(1, Math.round(contentRect.height));
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.uniform2f(uRes, canvas.width, canvas.height);
+  }).observe(canvas);
+
+  scheme.addEventListener('change', () => {
+    base();
+    from = palette();
+    to = palette();
+    since = performance.now();
+  });
+
+  canvas.addEventListener('webglcontextlost', e => e.preventDefault());
+  canvas.addEventListener('webglcontextrestored', setup);
+
+  canvas.addEventListener('pointerup', () => {
+    if (document.fullscreenElement || document.webkitFullscreenElement) return;
+    const request = root.requestFullscreen || root.webkitRequestFullscreen;
+    if (request) Promise.resolve(request.call(root)).catch(() => {});
+  });
+
+  setup();
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

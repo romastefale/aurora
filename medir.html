@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Aurora: medição</title>
+<style>
+  html {
+    background: #e00000;
+  }
+  body {
+    margin: 0;
+  }
+  .aurora {
+    position: relative;
+    height: 100lvh;
+    background: #1f8f5a;
+  }
+  .probe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 0;
+    visibility: hidden;
+  }
+  #lvh { height: 100lvh; }
+  #svh { height: 100svh; }
+  #dvh { height: 100dvh; }
+  #vh { height: 100vh; }
+  #env {
+    --top: env(safe-area-inset-top, nao-informado);
+    --bottom: env(safe-area-inset-bottom, nao-informado);
+    --left: env(safe-area-inset-left, nao-informado);
+    --right: env(safe-area-inset-right, nao-informado);
+    --max-top: env(safe-area-max-inset-top, nao-suportado);
+    --max-bottom: env(safe-area-max-inset-bottom, nao-suportado);
+  }
+  #fs {
+    position: absolute;
+    top: 12%;
+    left: 16px;
+    font: 18px system-ui;
+    padding: 10px 18px;
+  }
+  #out {
+    position: absolute;
+    top: 25%;
+    left: 16px;
+    right: 16px;
+    margin: 0;
+    padding: 12px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #fff;
+    font: 14px/1.5 ui-monospace, Menlo, monospace;
+    white-space: pre-wrap;
+  }
+</style>
+</head>
+<body>
+<div class="aurora">
+  <div class="probe" id="lvh"></div>
+  <div class="probe" id="svh"></div>
+  <div class="probe" id="dvh"></div>
+  <div class="probe" id="vh"></div>
+  <div class="probe" id="env"></div>
+  <pre id="out"></pre>
+  <button id="fs">tela cheia</button>
+</div>
+<script>
+(() => {
+  const out = document.getElementById('out');
+  const area = document.querySelector('.aurora');
+  const h = id => document.getElementById(id).getBoundingClientRect().height.toFixed(1);
+  const env = name => getComputedStyle(document.getElementById('env')).getPropertyValue('--' + name).trim();
+
+  function show() {
+    const r = area.getBoundingClientRect();
+    const vv = window.visualViewport;
+    const de = document.documentElement;
+    out.textContent = [
+      'VERDE = área da animação. VERMELHO = fora dela.',
+      '',
+      '100lvh: ' + h('lvh'),
+      '100svh: ' + h('svh'),
+      '100dvh: ' + h('dvh'),
+      '100vh:  ' + h('vh'),
+      'Fullscreen API: ' + (document.fullscreenEnabled ? 'disponível' : (document.webkitFullscreenEnabled ? 'disponível (webkit)' : 'indisponível')) + '   em tela cheia: ' + (document.fullscreenElement || document.webkitFullscreenElement ? 'sim' : 'não'),
+      'estado: ' + (h('dvh') === h('lvh') ? 'VIEWPORT GRANDE (barras recolhidas)' : 'viewport pequeno (barras abertas)'),
+      '',
+      'innerHeight: ' + window.innerHeight + '   innerWidth: ' + window.innerWidth,
+      'visualViewport: ' + (vv ? vv.height.toFixed(1) + ' (offsetTop ' + vv.offsetTop.toFixed(1) + ')' : 'não existe'),
+      'clientHeight do html: ' + de.clientHeight,
+      'altura do documento: ' + de.scrollHeight + '   rolagem: ' + window.scrollY.toFixed(1),
+      'tela: ' + screen.width + ' x ' + screen.height + '   DPR: ' + devicePixelRatio,
+      '',
+      'safe-area-inset top: ' + env('top') + '   bottom: ' + env('bottom'),
+      'safe-area-inset left: ' + env('left') + '   right: ' + env('right'),
+      'safe-area-max-inset top: ' + env('max-top') + '   bottom: ' + env('max-bottom'),
+      '',
+      'área verde: topo ' + r.top.toFixed(1) + '   base ' + r.bottom.toFixed(1) + '   altura ' + r.height.toFixed(1),
+      '',
+      navigator.userAgent
+    ].join('\n');
+  }
+
+  document.getElementById('fs').addEventListener('click', () => {
+    const el = document.documentElement;
+    const request = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (request) Promise.resolve(request.call(el)).catch(e => alert(e.message));
+    else alert('requestFullscreen não existe neste navegador');
+  });
+  addEventListener('scroll', show, { passive: true });
+  addEventListener('resize', show);
+  if (window.visualViewport) visualViewport.addEventListener('resize', show);
+  show();
+  setInterval(show, 500);
+})();
+</script>
+</body>
+</html>
