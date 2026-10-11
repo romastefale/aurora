@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Aurora</title>
+<meta name="apple-mobile-web-app-title" content="Aurora">
+<meta name="description" content="Fundo animado translúcido em tela cheia">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" href="favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Aurora">
+<meta property="og:description" content="Fundo animado translúcido em tela cheia">
+<meta property="og:url" content="https://romastefale.github.io/aurora/">
+<meta property="og:image" content="https://romastefale.github.io/aurora/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  :root {
+    --base: #f4f2f7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --base: #07070b; }
+  }
+  html {
+    background: var(--base);
+    touch-action: none;
+  }
+  body {
+    margin: 0;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100lvh;
+  }
+</style>
+</head>
+<body>
+<canvas></canvas>
+<script>
+(() => {
+  const vertex = `
+    attribute vec2 p;
+    void main() {
+      gl_Position = vec4(p, 0.0, 1.0);
+    }
+  `;
+
+  const fragment = `
+    precision highp float;
+    uniform vec2 u_res;
+    uniform float u_time;
+    uniform vec3 u_colors[4];
+    uniform vec3 u_base;
+    uniform vec3 u_edge;
+    uniform sampler2D u_noise;
+
+    float hash(vec2 i) {
+      return texture2D(u_noise, (i + 0.5) / 256.0).r;
+    }
+
+    float noise(vec2 p) {
+      vec2 i = floor(p);
+      vec2 f = fract(p);
+      vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+      float a = hash(i);
+      float b = hash(i + vec2(1.0, 0.0));
+      float c = hash(i + vec2(0.0, 1.0));
+      float d = hash(i + vec2(1.0, 1.0));
+      return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+    }
+
+    float fbm(vec2 p) {
+      float v = 0.0;
+      float amp = 0.5;
+      for (int i = 0; i < 4; i++) {
+        v += amp * noise(p);
+        p = mat2(1.6, 1.2, -1.2, 1.6) * p;
+        amp *= 0.5;
+      }
+      return v;
+    }
+
+    void main() {
+      vec2 uv = gl_FragCoord.xy / max(u_res.x, u_res.y);
+      float t = u_time * 0.03;
+      vec2 warp = vec2(fbm(uv * 2.0 + vec2(t, -t)), fbm(uv * 2.0 + vec2(5.2 - t, 1.3 + t)));
+      vec4 acc = vec4(0.0);
+      for (int k = 0; k < 4; k++) {
+        float fk = float(k);
+        vec2 drift = vec2(cos(fk * 1.9), sin(fk * 2.7)) * t;
+        float m = fbm(uv * (1.5 + fk * 0.4) + warp * 1.5 + drift + fk * 7.1);
+        float a = smoothstep(0.35, 0.75, m) * 0.6;
+        acc = vec4(u_colors[k] * a, a) + acc * (1.0 - a);
+      }
+      vec3 color = acc.rgb + u_base * (1.0 - acc.a);
+      float y = gl_FragCoord.y / u_res.y;
+      float toward = smoothstep(0.0, 0.14, min(y, 1.0 - y));
+      gl_FragColor = vec4(mix(u_edge, color, toward), 1.0);
+    }
+  `;
+
+  const canvas = document.querySelector('canvas');
+  const gl = canvas.getContext('webgl');
+  if (!gl) return;
+  const scheme = matchMedia('(prefers-color-scheme: dark)');
+  const LAYERS = 4;
+  const PERIOD = 16000;
+  const random = (min, max) => min + Math.random() * (max - min);
+
+  function hsl(h, s, l) {
+    h = ((h % 360) + 360) % 360;
+    const k = n => (n + h / 30) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+    return [f(0), f(8), f(4)];
+  }
+
+  function palette() {
+    const dark = scheme.matches;
+    const root = random(0, 360);
+    return Array.from({ length: LAYERS }, () =>
+      hsl(root + random(-90, 90), random(0.55, 0.9), dark ? random(0.4, 0.6) : random(0.6, 0.78))
+    );
+  }
+
+  function shader(type, source) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, source);
+    gl.compileShader(s);
+    return s;
+  }
+
+  const root = document.documentElement;
+  let uRes, uTime, uColors, uBase, uEdge;
+  const noise = new Uint8Array(256 * 256).map(() => Math.floor(Math.random() * 256));
+  let baseColor = [0, 0, 0];
+
+  function setup() {
+    const program = gl.createProgram();
+    gl.attachShader(program, shader(gl.VERTEX_SHADER, vertex));
+    gl.attachShader(program, shader(gl.FRAGMENT_SHADER, fragment));
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return false;
+    gl.useProgram(program);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+    const position = gl.getAttribLocation(program, 'p');
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+    uRes = gl.getUniformLocation(program, 'u_res');
+    uTime = gl.getUniformLocation(program, 'u_time');
+    uColors = gl.getUniformLocation(program, 'u_colors');
+    uBase = gl.getUniformLocation(program, 'u_base');
+    uEdge = gl.getUniformLocation(program, 'u_edge');
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, 256, 256, 0, gl.LUMINANCE, gl.UNSIGNED_BYTE, noise);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    gl.uniform1i(gl.getUniformLocation(program, 'u_noise'), 0);
+
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.uniform2f(uRes, canvas.width, canvas.height);
+    base();
+    return true;
+  }
+
+  function base() {
+    const hex = getComputedStyle(root).getPropertyValue('--base').trim();
+    baseColor = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
+    gl.uniform3f(uBase, ...baseColor);
+  }
+
+  function edge(colors) {
+    return baseColor.map((b, c) => {
+      let sum = 0;
+      for (let i = 0; i < LAYERS; i++) sum += colors[i * 3 + c];
+      return b * 0.4 + (sum / LAYERS) * 0.6;
+    });
+  }
+
+  let from = palette();
+  let to = palette();
+  let since = performance.now();
+
+  let ready = false;
+
+  function frame(now) {
+    if (!ready) return;
+    let p = (now - since) / PERIOD;
+    if (p >= 1) {
+      from = to;
+      to = palette();
+      since = now;
+      p = 0;
+    }
+    const w = (1 - Math.cos(Math.PI * p)) / 2;
+    const colors = from.flatMap((c, i) => c.map((v, j) => v + (to[i][j] - v) * w));
+    const border = edge(colors);
+    gl.uniform3fv(uColors, colors);
+    gl.uniform3f(uEdge, ...border);
+    gl.uniform1f(uTime, now / 1000);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    root.style.backgroundColor = `rgb(${border.map(v => Math.round(v * 255)).join(', ')})`;
+    requestAnimationFrame(frame);
+  }
+
+  new ResizeObserver(([{ contentRect }]) => {
+    canvas.width = Math.max(1, Math.round(contentRect.width));
+    canvas.height = Math.max(1, Math.round(contentRect.height));
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.uniform2f(uRes, canvas.width, canvas.height);
+  }).observe(canvas);
+
+  scheme.addEventListener('change', () => {
+    base();
+    from = palette();
+    to = palette();
+    since = performance.now();
+  });
+
+  canvas.addEventListener('webglcontextlost', e => {
+    e.preventDefault();
+    ready = false;
+  });
+  canvas.addEventListener('webglcontextrestored', () => {
+    ready = setup();
+    if (ready) requestAnimationFrame(frame);
+  });
+
+  canvas.addEventListener('pointerup', () => {
+    if (document.fullscreenElement || document.webkitFullscreenElement) return;
+    const request = root.requestFullscreen || root.webkitRequestFullscreen;
+    if (request) Promise.resolve(request.call(root)).catch(() => {});
+  });
+
+  ready = setup();
+  if (ready) requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
